@@ -1,0 +1,165 @@
+# Render Blueprint for the Free Fire Esports HQ backend.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# This is a MONOREPO: the frontend lives at the repo root (deployed to Vercel)
+# and the backend lives in backend/. Every service below sets rootDir: backend
+# so Render builds/runs from that subfolder.
+#
+# How to use:
+#   1. Push this file to the Esports-HQ repo (root).
+#   2. In Render: New > Blueprint > pick the DebadritNag/Esports-HQ repo.
+#   3. Render reads this file and creates the services below.
+#   4. Fill in the env vars marked sync:false (secrets) in the dashboard.
+#
+# Topology:
+#   - ffhq-api        : the Fastify HTTP API (the only service taking traffic)
+#   - ffhq-reminder   : the always-on reminder delivery worker
+#   Recurrence generation is handled by Supabase Cron (see the guide), so no
+#   recurrence worker is defined here. Add one (or the Discord bot) by
+#   uncommenting the templates at the bottom.
+#
+# NOTE ON FREE TIER: Render's free web service sleeps after ~15 min idle, and
+# free tier has NO always-on background workers. For reminders to fire on time,
+# the reminder worker needs a paid instance. The keep-alive GitHub Action only
+# keeps the web service awake, not the worker.
+
+services:
+  # ---------------------------------------------------------------------------
+  # HTTP API (Fastify)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: ffhq-api
+    runtime: node
+    plan: free # upgrade to 'starter' for no-sleep + reliability
+    region: singapore # match the Supabase project region (ap-southeast-1)
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: info
+      # --- Supabase (API needs URL + anon; service-role optional here) -------
+      - key: SUPABASE_URL
+        value: https://pivamlbexbpnlqbhqljm.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false # paste the anon/publishable key in the dashboard
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false # optional for the API; enables richer /ready counters
+      # --- Web Push (for parity; delivery runs in the worker) ----------------
+      - key: WEB_PUSH_PUBLIC_KEY
+        sync: false
+      - key: WEB_PUSH_PRIVATE_KEY
+        sync: false
+      - key: WEB_PUSH_SUBJECT
+        value: mailto:ops@freefirehq.example
+      # --- Rate limiting -----------------------------------------------------
+      - key: RATE_LIMIT_MAX
+        value: "100"
+      - key: RATE_LIMIT_WINDOW
+        value: 1 minute
+      # --- Real notifications on (not the test fake) -------------------------
+      - key: USE_FAKE_NOTIFICATIONS
+        value: "false"
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+
+  # ---------------------------------------------------------------------------
+  # Reminder delivery worker (always-on). Needs the service-role key.
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: ffhq-reminder
+    runtime: node
+    plan: starter # workers are NOT available on the free plan
+    region: singapore
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: node --env-file-if-exists=.env dist/workers/reminder-worker.js
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: SUPABASE_URL
+        value: https://pivamlbexbpnlqbhqljm.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false # REQUIRED - the worker exits cleanly without it
+      - key: WEB_PUSH_PUBLIC_KEY
+        sync: false
+      - key: WEB_PUSH_PRIVATE_KEY
+        sync: false
+      - key: WEB_PUSH_SUBJECT
+        value: mailto:ops@freefirehq.example
+      # --- Email (Resend via SMTP) -------------------------------------------
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: EMAIL_FROM
+        sync: false # a from-address on a Resend-verified domain
+      - key: SMTP_HOST
+        value: smtp.resend.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: resend
+      - key: SMTP_PASSWORD
+        sync: false # your Resend API key (re_...)
+      - key: REMINDER_POLL_INTERVAL_MS
+        value: "30000"
+      - key: REMINDER_BATCH_SIZE
+        value: "50"
+      - key: USE_FAKE_NOTIFICATIONS
+        value: "false"
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+
+  # ---------------------------------------------------------------------------
+  # OPTIONAL: recurrence worker. Prefer Supabase Cron instead (see guide). If
+  # you'd rather run it here, uncomment and remove the Supabase Cron schedule.
+  # ---------------------------------------------------------------------------
+  # - type: worker
+  #   name: ffhq-recurrence
+  #   runtime: node
+  #   plan: starter
+  #   region: singapore
+  #   rootDir: backend
+  #   buildCommand: npm ci && npm run build
+  #   startCommand: node --env-file-if-exists=.env dist/workers/recurrence-worker.js
+  #   envVars:
+  #     - key: SUPABASE_URL
+  #       value: https://pivamlbexbpnlqbhqljm.supabase.co
+  #     - key: SUPABASE_SERVICE_ROLE_KEY
+  #       sync: false
+  #     - key: RECURRENCE_HORIZON_DAYS
+  #       value: "30"
+
+  # ---------------------------------------------------------------------------
+  # OPTIONAL: Discord bot (single instance). Add once you have a bot token and
+  # have enabled the Message Content privileged intent.
+  # ---------------------------------------------------------------------------
+  # - type: worker
+  #   name: ffhq-discord-bot
+  #   runtime: node
+  #   plan: starter
+  #   region: singapore
+  #   rootDir: backend
+  #   buildCommand: npm ci && npm run build
+  #   startCommand: node --env-file-if-exists=.env dist/workers/discord-bot.js
+  #   envVars:
+  #     - key: SUPABASE_URL
+  #       value: https://pivamlbexbpnlqbhqljm.supabase.co
+  #     - key: SUPABASE_SERVICE_ROLE_KEY
+  #       sync: false
+  #     - key: DISCORD_BOT_TOKEN
+  #       sync: false
+  #     - key: DISCORD_CLIENT_ID
+  #       sync: false

@@ -1,5 +1,5 @@
 import { APP_CONFIG } from './constants';
-import { supabase } from './supabase';
+import { supabase, type GoTrueClient } from './supabase';
 import type { ApiErrorEnvelope } from '../types/api';
 
 export class ApiError extends Error {
@@ -64,12 +64,12 @@ export async function apiClient<T>(
 
   // Attach Supabase bearer token if available / required
   if (requiresAuth) {
-    const authClient = supabase.auth as unknown as import('./supabase').GoTrueClient;
-    const { data } = await authClient.getSession();
+    const auth = supabase.auth as unknown as GoTrueClient;
+    const { data } = await auth.getSession();
     const token = data.session?.access_token;
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
-    } else if (requiresAuth) {
+    } else {
       // If endpoint strictly requires auth and user is logged out
       throw new ApiError('Authentication required. Please sign in.', 401, 'UNAUTHORIZED');
     }

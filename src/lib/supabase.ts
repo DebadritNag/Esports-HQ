@@ -17,5 +17,5 @@ export type TypedSupabaseClient = Omit<typeof client, 'auth'> & {
   auth: GoTrueClient;
 };
 
-export const supabase: TypedSupabaseClient = client as TypedSupabaseClient;
+export const supabase = client as unknown as TypedSupabaseClient;
 export type { User, Session, GoTrueClient };
