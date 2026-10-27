@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-ivory: #F5F3EE;
+    --color-surface: #FFFFFF;
+    --color-charcoal: #202522;
+    --color-muted: #777A75;
+    --color-green: #246B4B;
+    --color-orange: #D97736;
+    --color-border: #E4E1D9;
+  }
+
+  body {
+    background-color: #F5F3EE;
+    color: #202522;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.011em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.025em;
+  }
+
+  /* Thin aesthetic scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #F5F3EE;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #CCC7BA;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #777A75;
+  }
+}
+
+@layer utilities {
+  .editorial-shadow {
+    box-shadow: 0 1px 3px rgba(32, 37, 34, 0.05), 0 1px 2px rgba(32, 37, 34, 0.03);
+  }
+
+  .editorial-rule {
+    border-bottom: 1px solid #E4E1D9;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
