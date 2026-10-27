@@ -1,0 +1,63 @@
+name: keep-alive
+
+# Pings the backend's readiness endpoint on a schedule so a free-tier Render
+# web service does not sleep, and the Supabase project stays active (the
+# /ready probe performs a real database read).
+#
+# Why GitHub Actions and not a self-ping inside the API process:
+#   A process that has already been put to sleep cannot ping itself awake.
+#   An EXTERNAL scheduler is the only thing that reliably keeps it up.
+#
+# Setup:
+#   1. Push this backend repo to GitHub.
+#   2. Add a repository variable KEEP_ALIVE_URL (Settings > Secrets and
+#      variables > Actions > Variables) set to your deployed readiness URL,
+#      e.g. https://free-fire-esports-hq.onrender.com/ready
+#      (Use a Variable, not a Secret — the URL is not sensitive and Secrets
+#       are masked, which makes debugging harder.)
+#
+# Note: GitHub cron is best-effort and often runs a few minutes late under
+# load. A 10-minute interval comfortably beats Render's ~15-minute idle sleep.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # every 10 minutes (UTC)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# Avoid piling up overlapping runs if one is slow.
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping readiness endpoint
+        env:
+          KEEP_ALIVE_URL: ${{ vars.KEEP_ALIVE_URL }}
+        run: |
+          if [ -z "${KEEP_ALIVE_URL}" ]; then
+            echo "KEEP_ALIVE_URL repository variable is not set. Skipping."
+            echo "Set it under Settings > Secrets and variables > Actions > Variables."
+            exit 0
+          fi
+
+          echo "Pinging ${KEEP_ALIVE_URL}"
+          # Retry a few times: a cold Render instance can take ~30-60s to wake.
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o /tmp/body.txt -w '%{http_code}' --max-time 60 "${KEEP_ALIVE_URL}" || echo "000")
+            echo "attempt ${attempt}: HTTP ${code}"
+            # 200 = ready; 503 = up but degraded (still counts as "awake").
+            if [ "${code}" = "200" ] || [ "${code}" = "503" ]; then
+              echo "Service is awake."
+              cat /tmp/body.txt
+              exit 0
+            fi
+            sleep 20
+          done
+
+          echo "Service did not respond after retries."
+          cat /tmp/body.txt || true
+          exit 1

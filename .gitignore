@@ -1,1 +1,19 @@
 node_modules
+
+# Secrets - never commit real environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# Build output
+dist/
+backend/dist/
+*.tsbuildinfo
+
+# Backend node_modules (root node_modules already ignored above)
+backend/node_modules/
+
+# Agent task artifacts
+backend/.agents/

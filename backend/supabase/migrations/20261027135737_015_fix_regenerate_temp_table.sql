@@ -1,0 +1,1 @@
+-- Applied to hosted project pivamlbexbpnlqbhqljm. Canonical source of truth is the hosted DB; sync locally with `supabase db pull` after `supabase login` + `supabase link`.
